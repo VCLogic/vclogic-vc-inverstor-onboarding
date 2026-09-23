@@ -71,9 +71,11 @@ uv run investor-onboarding prepare \
   --skip-indexes
 ```
 
+For Mac Conwell, the current site slug is `mac-conwell-rarebreed-ventures`. Live requests respect standard HTTP proxy and certificate environment settings.
+
 The bundle contains `source/pitch-show/` with the profile, episodes, decisions, source receipts, collection status, and `review-template.json`. Missing transcripts, failed requests, and collection caps are reported explicitly. Absence from an investment list is **not** treated as an Out decision.
 
-Use `--max-episodes 10` for a bounded collection; coverage will be marked incomplete if capped. To use cached downloads without network requests, add `--pitch-show-cache /path/to/cache`. Supported caches are this tool's `source/pitch-show` directory or the original scraper's directory containing `data/investors` and `data/episodes` (the `data` directory itself also works).
+Use `--max-episodes 10` to collect at most ten matching investor episodes (panel appearances or profile-reported investments). Unrelated pages and failed requests do not consume this limit, so more than ten candidate pages may be examined. The collection report records `candidate_count` and `examined_count`; coverage is incomplete when unexamined candidates remain. To use cached downloads without network requests, add `--pitch-show-cache /path/to/cache`. Supported caches are this tool's `source/pitch-show` directory or the original scraper's directory containing `data/investors` and `data/episodes` (the `data` directory itself also works).
 
 ### Promote reviewed decisions into assessment data
 

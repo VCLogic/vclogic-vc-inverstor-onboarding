@@ -139,3 +139,73 @@ def test_absolute_investment_link_preserves_reported_outcome(tmp_path):
     collect(SLUG, tmp_path / 'out', fetch=fetcher(p))
     decisions = read(tmp_path / 'out' / 'decisions.json')
     assert any(row['episode_slug'] == 'special-company' and row['reported_decision'] == 'In' for row in decisions)
+
+
+@pytest.mark.parametrize('mode', ['live', 'cache'])
+def test_episode_cap_counts_matching_investor_episodes(tmp_path, mode):
+    p = pages()
+    p[BASE + '/investors/' + SLUG] = '<script type="application/ld+json">' + json.dumps({'@type': 'Person', 'name': 'Alex Example'}) + '</script>'
+    p[BASE + '/1-company'] = episode('other-investor')
+    p[BASE + '/2-other'] = episode()
+    kwargs = {'fetch': fetcher(p)}
+    if mode == 'cache':
+        cache = tmp_path / 'cache'
+        (cache / 'episodes').mkdir(parents=True)
+        (cache / 'profile.json').write_text(json.dumps({'id': SLUG, 'name': 'Alex Example'}))
+        for name, investor in [('1-company', 'other-investor'), ('2-other', SLUG)]:
+            (cache / 'episodes' / (name + '.json')).write_text(json.dumps({'slug': name, 'panel': [{'slug': investor}], 'transcript': 'Hello'}))
+        kwargs = {'cache': cache}
+    report = collect(SLUG, tmp_path / 'out', max_episodes=1, **kwargs)
+    assert report['episode_count'] == 1
+    assert (tmp_path / 'out' / 'episodes' / '2-other.json').is_file()
+    assert report['examined_count'] == 2
+    assert not report['capped']  # All candidates were examined.
+
+
+def test_live_client_respects_environment_proxy(tmp_path, monkeypatch):
+    original_client = httpx.Client
+    options = {}
+    def client(**kwargs):
+        options.update(kwargs)
+        return original_client(transport=httpx.MockTransport(lambda request: fetcher(pages())(str(request.url))), **kwargs)
+    monkeypatch.setattr(httpx, 'Client', client)
+    assert collect(SLUG, tmp_path / 'out')['complete']
+    assert options.get('trust_env', True) is True
+
+
+def test_live_jsonld_actor_ids_match_investor_panel(tmp_path):
+    p = pages()
+    p[BASE + '/1-company'] = '<script type="application/ld+json">' + json.dumps({'@graph': [{'@type': 'PodcastEpisode', 'actor': [
+        {'@type': 'Person', '@id': BASE + '/founders/example#person', 'name': 'Founder'},
+        {'@type': 'Person', '@id': BASE + '/investors/' + SLUG + '#person', 'name': 'Alex Example'},
+    ], 'transcript': 'Founder: Hello\nAlex: Still considering it'}]}) + '</script>'
+    report = collect(SLUG, tmp_path / 'out', fetch=fetcher(p))
+    assert report['episode_count'] == 2
+    ep = read(tmp_path / 'out' / 'episodes' / '1-company.json')
+    assert ep['panel'][0]['slug'] == SLUG
+    assert [f['name'] for f in ep['founders']] == ['Founder']
+    assert ep['transcript'] == 'Founder: Hello\nAlex: Still considering it'
+    assert not report['missing_transcripts']
+
+
+def test_failed_candidate_does_not_consume_matching_episode_limit(tmp_path):
+    p = pages()
+    p[BASE + '/special-company'] = RuntimeError('temporary failure')
+    report = collect(SLUG, tmp_path / 'out', fetch=fetcher(p), max_episodes=1)
+    assert report['episode_count'] == 1
+    assert (tmp_path / 'out' / 'episodes' / '1-company.json').is_file()
+    assert report['examined_count'] == 2
+    assert report['capped']
+    assert not report['complete']
+
+
+def test_matching_episode_limit_stops_further_downloads(tmp_path):
+    seen = []
+    def fetch(url):
+        seen.append(url)
+        return fetcher(pages())(url)
+    report = collect(SLUG, tmp_path / 'out', fetch=fetch, max_episodes=1)
+    assert report['episode_count'] == 1
+    assert report['examined_count'] == 1
+    assert BASE + '/1-company' not in seen
+    assert BASE + '/2-other' not in seen

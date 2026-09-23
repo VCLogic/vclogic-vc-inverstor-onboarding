@@ -71,8 +71,8 @@ def collect(slug: str, output: Path, *, cache: Path | None = None,
     profile_url = BASE + '/investors/' + slug
     report = {'schema_version': 1, 'investor_slug': slug, 'mode': 'cache' if cache_root else 'live',
               'complete': False, 'capped': False, 'failures': [], 'missing_transcripts': [],
-              'episode_count': 0, 'sources': [], 'coverage_notes': []}
-    client = httpx.Client(timeout=30, follow_redirects=False, trust_env=False) if cache_root is None and fetch is None else None
+              'episode_count': 0, 'examined_count': 0, 'sources': [], 'coverage_notes': []}
+    client = httpx.Client(timeout=30, follow_redirects=False, trust_env=True) if cache_root is None and fetch is None else None
 
     def download(url):
         original = _official(url)
@@ -145,18 +145,35 @@ def collect(slug: str, output: Path, *, cache: Path | None = None,
             ep_slug = _slug(investment.get('episode_slug'))
             investments[ep_slug] = investment
         episodes = []
+        matched = set()
+
+        def retain_candidate(ep):
+            ep_slug = _slug(ep.get('slug'))
+            if ep_slug not in matched and (ep_slug in investments or any(
+                    p.get('slug') == slug for p in ep.get('panel') or [])):
+                matched.add(ep_slug)
+                episodes.append(ep)
+
+        def limit_reached():
+            if max_episodes is not None and len(matched) >= max_episodes:
+                report['capped'] = True
+                return True
+            return False
         if cache_root:
             if not episode_root.is_dir():
                 failure(str(episode_root), ValueError('episode cache missing'))
             paths = sorted(episode_root.glob('*.json'))
-            report['capped'] = max_episodes is not None and len(paths) > max_episodes
-            for path in paths[:max_episodes]:
+            report['candidate_count'] = len(paths)
+            for path in paths:
+                if limit_reached():
+                    break
+                report['examined_count'] += 1
                 try:
                     ep = json.loads(path.read_text())
                     _slug(ep.get('slug'))
                     if path.stem != ep['slug']:
                         raise ValueError('cache episode slug does not match filename')
-                    episodes.append(ep)
+                    retain_candidate(ep)
                     report['sources'].append({'cache_path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()})
                 except Exception as exc:
                     failure(str(path), exc)
@@ -189,11 +206,13 @@ def collect(slug: str, output: Path, *, cache: Path | None = None,
                     failure(url, exc)
             ordered = sorted(urls, key=lambda u: (u not in {i.get('episode_url') for i in investments.values()}, u))
             report['candidate_count'] = len(ordered)
-            report['capped'] = max_episodes is not None and len(ordered) > max_episodes
-            for url in ordered[:max_episodes]:
+            for url in ordered:
+                if limit_reached():
+                    break
+                report['examined_count'] += 1
                 try:
                     ep_slug = _slug(urlsplit(url).path.strip('/'))
-                    episodes.append(parse_episode(BeautifulSoup(download(url), 'html.parser'), ep_slug, url))
+                    retain_candidate(parse_episode(BeautifulSoup(download(url), 'html.parser'), ep_slug, url))
                 except Exception as exc:
                     failure(url, exc)
         decisions, review, retained = [], [], set()

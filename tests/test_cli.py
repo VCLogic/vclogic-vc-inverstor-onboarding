@@ -24,3 +24,13 @@ def test_cli_prepare_check_install(wiki,tmp_path,capsys):
 def test_cli_reports_invalid_source_without_traceback(tmp_path,capsys):
     assert main(['prepare','--wiki',str(tmp_path/'absent'),'--output',str(tmp_path/'out'),'--skip-indexes'])==1
     assert 'error' in capsys.readouterr().err
+
+
+def test_cli_reports_collection_network_error_without_traceback(tmp_path, monkeypatch, capsys):
+    import httpx
+    import vclogic_onboarding.cli as cli
+    def fail(**kwargs):
+        raise httpx.ConnectTimeout('profile connection timed out')
+    monkeypatch.setattr(cli, 'prepare', fail)
+    assert main(['prepare', '--wiki', str(tmp_path), '--output', str(tmp_path / 'out'), '--from-pitch-show']) == 1
+    assert 'profile connection timed out' in capsys.readouterr().err

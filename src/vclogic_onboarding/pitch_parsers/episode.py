@@ -2,6 +2,7 @@
 # pitchshow_scraper/episode.py
 """Parse a Pitch episode page into a canonical episode dict."""
 import re
+from urllib.parse import urlsplit, urldefrag
 from datetime import datetime, timezone
 
 BASE_URL = "https://www.thepitch.show"
@@ -37,15 +38,24 @@ def parse_episode(soup, slug, url=None):
         actors = [actors]
     actors = [actor for actor in actors if isinstance(actor, dict)]
 
+    def actor_url(actor):
+        return urldefrag(actor.get("url") or actor.get("@id") or "")[0]
+
+    def is_investor(actor):
+        parsed = urlsplit(actor_url(actor))
+        return actor.get("description") == "Investor" or (
+            parsed.hostname in {"www.thepitch.show", "thepitch.show"}
+            and parsed.path.startswith("/investors/"))
+
     founders = [
-        {"name": a.get("name"), "url": a.get("url")}
+        {"name": a.get("name"), "url": actor_url(a) or None}
         for a in actors
-        if a.get("description") != "Investor"
+        if not is_investor(a)
     ]
     panel = [
-        {"name": a.get("name"), "slug": _slug_from_url(a.get("url")), "url": a.get("url")}
+        {"name": a.get("name"), "slug": _slug_from_url(actor_url(a)), "url": actor_url(a) or None}
         for a in actors
-        if a.get("description") == "Investor"
+        if is_investor(a)
     ]
     media = ep.get("associatedMedia") or {}
 
@@ -60,7 +70,7 @@ def parse_episode(soup, slug, url=None):
         "episode_type": "pitch" if founders else "special",
         "founders": founders,
         "panel": panel,
-        "transcript": extract_transcript(soup),
+        "transcript": extract_transcript(soup) or (ep.get("transcript") if isinstance(ep.get("transcript"), str) else None),
         "audio_url": media.get("contentUrl") if isinstance(media, dict) else None,
         "duration": media.get("duration") if isinstance(media, dict) else None,
         "external_links": ep.get("sameAs", []),

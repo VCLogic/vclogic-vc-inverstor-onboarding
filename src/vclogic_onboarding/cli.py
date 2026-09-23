@@ -2,6 +2,7 @@
 import argparse
 import json
 import sys
+import httpx
 from pathlib import Path
 
 from .bundle import check_bundle, index_bundle, install_bundle, prepare
@@ -19,7 +20,7 @@ def parser():
     build.add_argument("--from-pitch-show", action="store_true", help="Collect this investor's Pitch Show episodes and reported decisions")
     build.add_argument("--pitch-show-slug", help="Investor slug on The Pitch website (defaults to wiki slug)")
     build.add_argument("--pitch-show-cache", type=Path, help="Read previously downloaded episodes without network access")
-    build.add_argument("--max-episodes", type=int, help="Limit collection; capped bundles report incomplete coverage")
+    build.add_argument("--max-episodes", type=int, help="Limit matching investor episodes; candidate pages examined may be higher")
     build.add_argument("--review", type=Path, help="Evidence-linked human review JSON for historical pitches")
     build.add_argument("--skip-indexes", action="store_true", help="Prepare an incomplete bundle without downloading embedding models")
     for name, help_text in (("index", "Build semantic indexes for an existing bundle"), ("check", "Verify bundle contents and assessment compatibility"), ("install", "Install an investor bundle into an existing pipeline workspace")):
@@ -47,7 +48,7 @@ def main(argv=None):
             result = install_bundle(args["bundle"], args["pipeline_workspace"])
         print(json.dumps(result, indent=2))
         return 0
-    except (ValueError, OSError, KeyError, TypeError, RuntimeError, ImportError) as exc:
+    except (ValueError, OSError, KeyError, TypeError, RuntimeError, ImportError, httpx.HTTPError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         if isinstance(exc, ImportError):
             print("For semantic indexing, run with: uv run --extra embeddings investor-onboarding ...", file=sys.stderr)

@@ -1,0 +1,14 @@
+{
+  "canonical.toml": {
+    "source": "configs/canonical-live-v41.toml",
+    "sha256": "50d2ab923b2348e5ba7954c5dcdafa680b89e9cbade261561783c8e5ec5b637c"
+  },
+  "rehearsal.toml": {
+    "source": "configs/rehearsal-charles-v41-grounded.toml",
+    "sha256": "818bb306ad958992b9e813cf60da217cb18985cac8e944c17ec92d6f27c158c8"
+  },
+  "taxonomy.json": {
+    "source": "inputs/taxonomy/codebook_v_final.json",
+    "sha256": "eaa8734819a3ac34dd19ee5f0bf6de925a793a1d25a2d361090dafc9b751e1fc"
+  }
+}

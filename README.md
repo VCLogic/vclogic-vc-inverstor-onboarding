@@ -1,4 +1,4 @@
-# vcLogicInvestorOnboarding
+# VCLogic Investor Onboarding
 
 Turn an investor knowledge wiki into a validated, portable bundle for the VCLogic assessment pipeline. For investors on **The Pitch**, collect their historical pitches, extract evidence-linked decisions, and build retrieval over those transcripts and decisions.
 

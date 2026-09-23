@@ -96,7 +96,7 @@ def test_unreviewed_pitch_show_collection_keeps_retrievers_disabled(wiki,tmp_pat
         (output/'decisions.json').write_text('[{"reported_decision":"In","pitch_window_decision":"Unobserved"}]')
         return {'complete':True,'episode_count':1}
     monkeypatch.setattr(pitch_show,'collect',collect)
-    out=tmp_path/'bundle';prepare(wiki,out,skip_indexes=True,from_pitch_show=True)
+    out=tmp_path/'bundle';prepare(wiki,out,skip_indexes=True,from_pitch_show=True,collect_only=True)
     assert not load_config(out/'configs/investors/test-investor/canonical.toml').precedents.enabled
     assert (out/'source/pitch-show/decisions.json').exists()
 
@@ -133,3 +133,44 @@ def test_unlisted_file_is_rejected(wiki,tmp_path):
     (out/'unexpected.txt').write_text('unexpected')
     with pytest.raises(ValueError,match='inventory'):
         check_bundle(out)
+
+
+def test_pitch_show_builds_machine_precedents_by_default(wiki, tmp_path, monkeypatch):
+    import json
+    from vclogic_onboarding import pitch_show, extraction
+    from vc_clone_graph.precedents import PrecedentCorpus
+    from vclogic_onboarding.configuration import embedding_settings
+    from test_extraction import Provider, episode, proposal, verification
+    def collect(slug, output, **kwargs):
+        (output/'episodes').mkdir(parents=True)
+        (output/'episodes/1-example.json').write_text(json.dumps(episode()))
+        return {'episode_count': 1, 'complete': True}
+    monkeypatch.setattr(pitch_show, 'collect', collect)
+    monkeypatch.setattr(extraction, 'make_provider', lambda model=None: (Provider(proposal(), verification()), 'test-model'))
+    class Embedder:
+        metadata = embedding_settings()
+        def embed(self, texts): return [[1., float(len(t)), .2] for t in texts]
+    bundle = tmp_path/'machine-bundle'
+    prepare(wiki, bundle, from_pitch_show=True, embedder=Embedder())
+    assert check_bundle(bundle)['capabilities']['precedents']
+    assert not (bundle/'evaluation').exists()
+    assert (bundle/'inputs/indexes/test-investor.precedents.json').exists()
+    workspace = tmp_path/'workspace'; workspace.mkdir()
+    install_bundle(bundle, workspace)
+    corpus = PrecedentCorpus.load(workspace/'inputs/indexes/test-investor.precedents.json',
+        workspace/'inputs/data/investors/test-investor/precedents', Embedder(), require_complete_embeddings=True)
+    assert corpus is not None
+    record = json.loads((workspace/'inputs/data/investors/test-investor/precedents/records/1-example.json').read_text())
+    assert record['decision']['status'] == 'Out'
+    assert (workspace/record['decision']['audit_source']).is_file()
+
+
+def test_collect_only_does_not_initialize_model(wiki, tmp_path, monkeypatch):
+    from vclogic_onboarding import pitch_show, extraction
+    def collect(slug, output, **kwargs):
+        output.mkdir(parents=True)
+        return {'episode_count': 0, 'complete': False}
+    monkeypatch.setattr(pitch_show, 'collect', collect)
+    monkeypatch.setattr(extraction, 'make_provider', lambda *a: pytest.fail('model initialization'))
+    prepare(wiki, tmp_path/'collected', from_pitch_show=True, collect_only=True, skip_indexes=True)
+    assert not check_bundle(tmp_path/'collected')['capabilities']['precedents']

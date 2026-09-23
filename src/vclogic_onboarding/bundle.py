@@ -59,7 +59,7 @@ def _build_indexes(root: Path,metadata: dict,embedder=None) -> None:
 
 def prepare(wiki: Path,output: Path,*,slug=None,display_name=None,firm=None,role=None,aliases=(),
             from_pitch_show=False,pitch_show_slug=None,pitch_show_cache=None,review=None,
-            skip_indexes=False,embedder=None,max_episodes=None) -> dict:
+            skip_indexes=False,embedder=None,max_episodes=None,collect_only=False,decision_model=None) -> dict:
     wiki=Path(wiki);output=Path(output)
     reject_symlinks(wiki,recursive=True);reject_symlinks(output)
     wiki=wiki.resolve(strict=True);output=output.absolute()
@@ -67,8 +67,14 @@ def prepare(wiki: Path,output: Path,*,slug=None,display_name=None,firm=None,role
         raise ValueError(f'output already exists: {output}; choose a new bundle version')
     if output.is_relative_to(wiki):
         raise ValueError('output must not be inside the source wiki')
-    if (review or pitch_show_cache or pitch_show_slug or max_episodes is not None) and not from_pitch_show:
+    if (review or pitch_show_cache or pitch_show_slug or max_episodes is not None or collect_only or decision_model) and not from_pitch_show:
         raise ValueError('Pitch Show options require --from-pitch-show')
+    if collect_only and decision_model:
+        raise ValueError('--decision-model cannot be used with --collect-only')
+    decision_provider = None
+    if from_pitch_show and not collect_only:
+        from .extraction import make_provider
+        decision_provider, decision_model = make_provider(decision_model)
     _wiki_valid(wiki)
     manifest=read_json(wiki/'_manifest.json');prepared=read_json(wiki/'prepared.json')
     if manifest['vc_slug']!=prepared['vc_slug']:
@@ -116,6 +122,11 @@ def prepare(wiki: Path,output: Path,*,slug=None,display_name=None,firm=None,role
                 metadata['capabilities']['precedents']=enrichment['precedent_records']>0
                 metadata['eligible_pitches']=enrichment['eligible_pitches']
                 metadata['dataset']=enrichment
+            if not collect_only:
+                from .extraction import enrich_machine
+                extraction=enrich_machine(root,slug,investor_aliases,decision_provider,decision_model)
+                metadata['extraction']=extraction
+                metadata['capabilities']['precedents']=extraction['precedent_records']>0
         write_configs(root,slug,precedents=metadata['capabilities']['precedents'])
         if not skip_indexes:
             _build_indexes(root,metadata,embedder)
@@ -164,7 +175,8 @@ def check_bundle(bundle: Path) -> dict:
             PrecedentCorpus.load(root/f'inputs/indexes/{slug}.precedents.json',root/f'inputs/data/investors/{slug}/precedents',
                 _IndexIdentity(),require_complete_embeddings=True)
     return {'valid':True,'vc_slug':slug,'ready_for_assessment':metadata['ready_for_assessment'],
-            'capabilities':capabilities,'files':len(actual),'pitch_show':metadata['pitch_show']}
+            'capabilities':capabilities,'files':len(actual),'pitch_show':metadata['pitch_show'],
+            'extraction':metadata.get('extraction')}
 
 
 def index_bundle(bundle: Path,*,embedder=None) -> dict:

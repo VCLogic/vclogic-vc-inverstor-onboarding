@@ -1,5 +1,7 @@
 # Investor onboarding CLI
 
+The automatic precedent extension in [2026-09-23-automatic-precedents.md](2026-09-23-automatic-precedents.md) supersedes the original human-review-only retrieval restriction below. Machine extraction remains separate from audited evaluation labels.
+
 ## Approved scope
 The user requested a separate sibling repository and CLI that turns investment-memory wikis into assessment-pipeline inputs, with a `--from-pitch-show` flag to download the investor's pitches and decision evidence.
 

@@ -1,0 +1,9 @@
+# Automatic Pitch Show precedents
+
+Approved direction: `--from-pitch-show` collects transcripts, uses model calls to extract evidence-linked decisions, builds the engine's historical corpus and semantic index, and enables historical retrieval. Machine decisions are retrieval inputs, never human-audited evaluation labels. Missing investments never imply Out.
+
+Use the existing assessment OpenRouter adapter with an explicit CLI model override and pinned default from the shipped canonical template. An extraction pass proposes the pitch-window status, context, investor turn, verbatim quote, conditions and explanation. A separate verification pass sees all numbered transcript turns and must independently agree with status, context and turn. The local validator requires an exact investor quote. Later-diligence/off-panel/unclear proposals, disagreements, and invalid evidence become unobserved with provenance. API failures abort preparation rather than publishing misleading success. Missing transcripts are reported and excluded. No transcript truncation: oversized inputs are explicitly skipped for extraction and retained unobserved.
+
+Build machine decisions directly through the assessment precedent builder, under `inputs/data/investors/<slug>/machine-decisions.json`. Record model, prompts, responses, usage and source hashes under `source/pitch-show/extraction/`. Do not create evaluation labels or eligible assessment pitch packages from machine extraction. User-supplied `--review` continues to produce audited evaluation data; its rows override machine extraction, while other collected episodes remain available as machine precedents.
+
+Default `--from-pitch-show` performs extraction; `--collect-only` opts out. `--skip-indexes` skips embeddings, not extraction. The existing bundle remains unchanged. Prepare a new version and test installation in a temporary workspace. No assessment repository code changes.

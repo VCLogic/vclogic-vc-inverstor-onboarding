@@ -17,10 +17,12 @@ def parser():
     for name in ("slug", "display-name", "firm", "role"):
         build.add_argument(f"--{name}")
     build.add_argument("--alias", dest="aliases", action="append", default=[])
-    build.add_argument("--from-pitch-show", action="store_true", help="Collect this investor's Pitch Show episodes and reported decisions")
+    build.add_argument("--from-pitch-show", action="store_true", help="Collect Pitch Show evidence and extract historical decisions (uses model calls)")
     build.add_argument("--pitch-show-slug", help="Investor slug on The Pitch website (defaults to wiki slug)")
-    build.add_argument("--pitch-show-cache", type=Path, help="Read previously downloaded episodes without network access")
+    build.add_argument("--pitch-show-cache", type=Path, help="Reuse collected evidence; automatic extraction still calls the model")
     build.add_argument("--max-episodes", type=int, help="Limit matching investor episodes; candidate pages examined may be higher")
+    build.add_argument("--collect-only", action="store_true", help="Download Pitch Show evidence without automatic decision extraction")
+    build.add_argument("--decision-model", help="OpenRouter model for automatic decision extraction and verification")
     build.add_argument("--review", type=Path, help="Evidence-linked human review JSON for historical pitches")
     build.add_argument("--skip-indexes", action="store_true", help="Prepare an incomplete bundle without downloading embedding models")
     for name, help_text in (("index", "Build semantic indexes for an existing bundle"), ("check", "Verify bundle contents and assessment compatibility"), ("install", "Install an investor bundle into an existing pipeline workspace")):

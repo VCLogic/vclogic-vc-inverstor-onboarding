@@ -1,11 +1,17 @@
 import json
+import pytest
 
 from vc_clone_graph.firewall import verify_package, validate_precedent_corpus
 from vc_clone_graph.config import load_config
 from vclogic_onboarding.bundle import prepare, check_bundle
 
 
-def test_reviewed_pitch_collection_produces_audited_engine_inputs(wiki,tmp_path):
+@pytest.mark.parametrize('collect_only', [True, False])
+def test_reviewed_pitch_collection_produces_audited_engine_inputs(wiki,tmp_path,monkeypatch,collect_only):
+    from vclogic_onboarding import extraction
+    class NoCalls:
+        def generate(self, request): pytest.fail('human reviewed episode must not invoke model')
+    monkeypatch.setattr(extraction, 'make_provider', lambda model=None: (NoCalls(), 'test-model'))
     cache=tmp_path/'cache';(cache/'episodes').mkdir(parents=True)
     (cache/'profile.json').write_text(json.dumps({'id':'test-investor','name':'Test Investor','investments':[]}))
     (cache/'episodes/1-example.json').write_text(json.dumps({
@@ -20,7 +26,7 @@ def test_reviewed_pitch_collection_produces_audited_engine_inputs(wiki,tmp_path)
         'evidence_contains':'I am out because the market is too small.',
     }]))
     out=tmp_path/'bundle'
-    prepare(wiki,out,skip_indexes=True,from_pitch_show=True,pitch_show_cache=cache,review=review)
+    prepare(wiki,out,skip_indexes=True,from_pitch_show=True,pitch_show_cache=cache,review=review,collect_only=collect_only)
     config=load_config(out/'configs/investors/test-investor/canonical.toml')
     assert config.precedents.enabled
     package=verify_package(out/'inputs','test-investor','1-example')

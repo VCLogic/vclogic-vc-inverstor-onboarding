@@ -24,6 +24,44 @@ Onboarding generates the investor registration and assessment configurations for
 
 **Use `--from-pitch-show` if you want the assessment to retrieve the investor's past pitches and decisions.** Human `--review` rows can also create historical records and audited evaluation assets, including in `--collect-only` mode.
 
+## Dependencies on Other VCLogic Repositories
+
+This project directly depends on two repositories in the [VCLogic organization](https://github.com/VCLogic). A third repository provides the web interface that consumes prepared investor assets.
+
+| Repository | Relationship to onboarding | What it provides or consumes |
+| --- | --- | --- |
+| [vclogic-vc-investment-memory](https://github.com/VCLogic/vclogic-vc-investment-memory) | **Required Python dependency and source-data producer** | Generates the investor wiki supplied to `prepare --wiki`. Onboarding imports its `wiki_build` validator to check the source wiki and its archived snapshot. |
+| [vclogic-vc-agentic-assessment](https://github.com/VCLogic/vclogic-vc-agentic-assessment) | **Required Python dependency and bundle consumer** | Provides the `vc_clone_graph` config schemas, validators, historical corpus and pitch-package builders, retrieval indexes, and model/embedding adapters. Onboarding generates assets in these formats; the engine uses them for assessments and rehearsal. |
+| [vclogic-web-application](https://github.com/VCLogic/vclogic-web-application) | **Optional downstream application** | Provides the React interface and FastAPI API. It depends on the assessment engine and can discover prepared onboarding bundles or installed investor assets. It is not needed to run this CLI and does not build missing onboarding indexes through the browser. |
+
+### Package and Checkout Dependencies
+
+The required packages are declared in [`pyproject.toml`](pyproject.toml):
+
+| Python package | Required version | Editable checkout path |
+| --- | --- | --- |
+| `vc-investment-memory` | `>=0.2,<0.3` | `../vclogic-vc-investment-memory` |
+| `vclogic-vc-agentic-assessment` | `>=0.1,<0.2` | `../vclogic-vc-agentic-assessment` |
+
+Both sibling checkouts must exist before running `uv sync`, including for wiki-only onboarding. The `embeddings` extra also enables the assessment package's optional embedding dependencies. Because these dependencies are editable, changes in a sibling checkout affect this CLI immediately; use compatible revisions and rerun validation after updating them.
+
+If the required sibling repositories are not yet checked out:
+
+```bash
+cd /home/dpasch01
+git clone https://github.com/VCLogic/vclogic-vc-investment-memory.git
+git clone https://github.com/VCLogic/vclogic-vc-agentic-assessment.git
+```
+
+### Data Handoff and Repository Ownership
+
+1. **Investment-memory** produces the wiki. Onboarding reads and snapshots it without modifying the original.
+2. **Onboarding** prepares and validates the bundle in this repository. `prepare` does not install it into another project; `install --pipeline-workspace PATH` performs that explicit handoff.
+3. **Assessment** runs the investor-specific assessment or rehearsal using the prepared identity, wiki, historical records, indexes, and configs.
+4. **Web application**, when used, runs against an assessment workspace and discovers available investor assets. Its [README](https://github.com/VCLogic/vclogic-web-application#readme) documents bundle discovery and workspace configuration.
+
+Source collection and bundle preparation belong here; assessment logic belongs in the assessment repository; browser and API changes belong in the web repository. Credentials and downloaded model caches are configured separately from bundle installation.
+
 ## Requirements
 
 - Python 3.11–3.13 and [uv](https://docs.astral.sh/uv/).
